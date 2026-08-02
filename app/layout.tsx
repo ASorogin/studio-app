@@ -1,3 +1,5 @@
+// app/layout.tsx
+import "./globals.css";
 import { Rubik, Assistant, IBM_Plex_Sans_Hebrew } from "next/font/google";
 
 const rubik = Rubik({

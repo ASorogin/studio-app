@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @theme {
+  /* Colors */
   --color-ink: #1c1620;
   --color-paper: #efede4;
   --color-paper-2: #e7e3d6;
@@ -12,12 +13,19 @@
   --color-success: #3b8764;
   --color-border: #dedacc;
 
+  /* Fonts (variables injected via next/font in app/layout.tsx) */
   --font-display: var(--font-rubik);
   --font-body: var(--font-assistant);
   --font-util: var(--font-plex-hebrew);
 
+  /* Radius */
   --radius: 16px;
   --radius-sm: 10px;
+  --radius-card: 16px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(28, 22, 32, 0.08), 0 1px 2px rgba(28, 22, 32, 0.06);
+  --shadow-card-lg: 0 8px 24px rgba(28, 22, 32, 0.14), 0 2px 8px rgba(28, 22, 32, 0.08);
 }
 
 body {
