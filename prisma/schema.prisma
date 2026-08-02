@@ -1,0 +1,181 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+
+enum PlanTier {
+  free
+  pro
+  max
+}
+
+model Agency {
+  id               String   @id @default(cuid())
+  name             String
+  email            String   @unique
+  plan             PlanTier @default(free)
+  stripeCustomerId String?
+  createdAt        DateTime @default(now())
+
+  users         User[]
+  businesses    Business[]
+  subscriptions Subscription[]
+}
+
+enum UserRole {
+  owner
+  editor
+}
+
+model User {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name      String
+  email     String   @unique
+  role      UserRole @default(editor)
+  // passwordHash not stored here — managed by Supabase Auth.
+  // id should match the Supabase Auth user id (uuid) once Auth is wired.
+  createdAt DateTime @default(now())
+}
+
+model Business {
+  id             String   @id @default(cuid())
+  agencyId       String
+  agency         Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name           String
+  industry       String
+  logoUrl        String?
+  colorPrimary   String
+  colorSecondary String
+  fontFamily     String
+  keywords       String[]
+  createdAt      DateTime @default(now())
+
+  photoShoots     PhotoShoot[]
+  ads             Ad[]
+  calendarEntries CalendarEntry[]
+
+  @@index([agencyId])
+}
+
+model PhotoShoot {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  label      String
+  shootDate  DateTime
+  createdAt  DateTime @default(now())
+
+  photos Photo[]
+
+  @@index([businessId])
+}
+
+enum PhotoStatus {
+  available
+  used
+}
+
+model Photo {
+  id          String      @id @default(cuid())
+  shootId     String
+  shoot       PhotoShoot  @relation(fields: [shootId], references: [id], onDelete: Cascade)
+  originalUrl String
+  thumbUrl    String
+  label       String
+  status      PhotoStatus @default(available)
+  uploadedAt  DateTime    @default(now())
+
+  ads Ad[]
+
+  @@index([shootId])
+}
+
+enum AdFormat {
+  feed
+  story
+  reel
+}
+
+enum TextMode {
+  auto
+  manual
+}
+
+model Ad {
+  id             String   @id @default(cuid())
+  businessId     String
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  photoId        String
+  photo          Photo    @relation(fields: [photoId], references: [id])
+  format         AdFormat
+  caption        String
+  headline       String
+  textMode       TextMode @default(auto)
+  outputImageUrl String
+  eventId        String?
+  event          Event?   @relation(fields: [eventId], references: [id])
+  createdAt      DateTime @default(now())
+
+  calendarEntries CalendarEntry[]
+
+  @@index([businessId])
+  @@index([photoId])
+}
+
+enum EventType {
+  holiday
+  international_day
+}
+
+model Event {
+  id         String    @id @default(cuid())
+  name       String
+  emoji      String
+  type       EventType
+  month      Int
+  day        Int
+  categories String[]
+  isCustom   Boolean   @default(false)
+  agencyId   String?
+
+  ads Ad[]
+}
+
+enum CalendarStatus {
+  ready
+  planned
+  empty
+}
+
+model CalendarEntry {
+  id         String         @id @default(cuid())
+  businessId String
+  business   Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  date       DateTime
+  status     CalendarStatus @default(empty)
+  adId       String?
+  ad         Ad?            @relation(fields: [adId], references: [id])
+
+  @@unique([businessId, date])
+  @@index([businessId])
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  agencyId             String
+  agency               Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  stripeSubscriptionId String   @unique
+  status               String
+  currentPeriodEnd     DateTime
+
+  @@index([agencyId])
+}
