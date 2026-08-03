@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import type { Business } from "@prisma/client";
 
 const fontOptions = ["Rubik", "Assistant", "IBM Plex Sans Hebrew"];
@@ -18,15 +18,45 @@ export function BusinessProfileForm({ business }: { business: Business }) {
     keywords: business.keywords.join(", "),
   });
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function handleChange(field: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setSaved(false);
+    setError(null);
   }
 
-  function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    // Stage 1: no real API call — local state only.
+    setIsSaving(true);
+    setError(null);
+
+    const res = await fetch(`/api/businesses/${business.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: form.name,
+        industry: form.industry,
+        logoUrl: form.logoUrl,
+        colorPrimary: form.colorPrimary,
+        colorSecondary: form.colorSecondary,
+        fontFamily: form.fontFamily,
+        keywords: form.keywords
+          .split(",")
+          .map((k) => k.trim())
+          .filter(Boolean),
+      }),
+    });
+
+    setIsSaving(false);
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error ?? "שגיאה בשמירה");
+      return;
+    }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -122,17 +152,23 @@ export function BusinessProfileForm({ business }: { business: Business }) {
         </Field>
       </section>
 
+      {error && (
+        <p className="rounded-sm bg-signal/10 px-3 py-2 font-util text-xs text-signal">{error}</p>
+      )}
+
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          className="rounded-sm bg-flash px-5 py-2 font-body text-sm font-semibold text-flash-ink transition-opacity hover:opacity-90"
+          disabled={isSaving}
+          className="flex items-center gap-2 rounded-sm bg-flash px-5 py-2 font-body text-sm font-semibold text-flash-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          שמירת שינויים
+          {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isSaving ? "שומר..." : "שמירת שינויים"}
         </button>
         {saved && (
           <span className="flex items-center gap-1 font-util text-sm text-success">
             <Check className="h-4 w-4" />
-            נשמר (מקומית — עדיין ללא חיבור לשרת)
+            נשמר בהצלחה
           </span>
         )}
       </div>
