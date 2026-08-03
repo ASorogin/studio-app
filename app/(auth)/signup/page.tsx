@@ -16,17 +16,18 @@ export default function SignupPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.signUp({
+    const { data, error: authError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
       options: {
         data: { agency_name: form.agencyName },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -36,20 +37,20 @@ export default function SignupPage() {
       return;
     }
 
-    // עם "Confirm email" כבוי (מצב פיתוח), signUp מחזיר session פעיל מיד,
-    // כך שאפשר ליצור את שורות ה-Agency/User ב-DB ישר אחרי זה.
-    const res = await fetch("/api/auth/complete-signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agencyName: form.agencyName }),
-    });
+    // אם "Confirm email" כבוי (פיתוח) — signUp מחזיר session מיד, אפשר
+    // ליצור את הסוכנות כאן. אם דלוק (production) — אין session עדיין,
+    // וזה יקרה אוטומטית ב-/auth/callback אחרי לחיצה על הקישור במייל.
+    if (data.session) {
+      const res = await fetch("/api/auth/complete-signup", { method: "POST" });
+      setIsLoading(false);
 
-    setIsLoading(false);
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "שגיאה ביצירת הסוכנות");
-      return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error ?? "שגיאה ביצירת הסוכנות");
+        return;
+      }
+    } else {
+      setIsLoading(false);
     }
 
     setSubmitted(true);
