@@ -1,6 +1,7 @@
 // app/(dashboard)/businesses/[id]/page.tsx
 import { notFound } from "next/navigation";
-import { getBusinessById } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 import { BusinessProfileForm } from "@/components/business-profile-form";
 import { BusinessSubNav } from "@/components/business-sub-nav";
 
@@ -10,7 +11,26 @@ export default async function BusinessProfilePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const business = getBusinessById(id);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    notFound();
+  }
+
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  if (!dbUser) {
+    notFound();
+  }
+
+  // חשוב: מסננים גם לפי agencyId — כדי שמשתמש מסוכנות א' לא יוכל
+  // לגשת לעסק של סוכנות ב' רק ע"י ניחוש ה-ID ב-URL.
+  const business = await prisma.business.findFirst({
+    where: { id, agencyId: dbUser.agencyId },
+  });
 
   if (!business) {
     notFound();

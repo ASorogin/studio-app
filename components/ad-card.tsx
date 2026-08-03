@@ -1,6 +1,6 @@
 // components/ad-card.tsx
 import { ImageIcon } from "lucide-react";
-import type { Ad } from "@/lib/mock-data";
+import type { Ad } from "@prisma/client";
 
 const formatLabels: Record<Ad["format"], string> = {
   feed: "פיד",
@@ -11,7 +11,7 @@ const formatLabels: Record<Ad["format"], string> = {
 export function AdCard({ ad }: { ad: Ad }) {
   return (
     <div className="flex flex-col overflow-hidden rounded-card border border-border bg-surface shadow-card">
-      <div className="flex aspect-[4/5] items-center justify-center bg-paper-2">
+      <div className="flex aspect-4/5 items-center justify-center bg-paper-2">
         <ImageIcon className="h-8 w-8 text-ink/20" />
       </div>
       <div className="flex flex-col gap-1.5 p-3">

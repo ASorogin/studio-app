@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { ChevronRight, ChevronLeft } from "lucide-react";
-import type { CalendarEntry } from "@/lib/mock-data";
+import type { CalendarEntry } from "@prisma/client";
 
 const statusStyles: Record<string, string> = {
   ready: "bg-success/15 text-success border-success/30",
@@ -35,7 +35,9 @@ export function BusinessCalendar({
   const [month, setMonth] = useState(8); // 1-12, אוגוסט כברירת מחדל (יש לו נתוני mock)
 
   const entriesByDate = new Map(
-    entries.filter((e) => e.businessId === businessId).map((e) => [e.date, e])
+    entries
+      .filter((e) => e.businessId === businessId)
+      .map((e) => [e.date.toISOString().slice(0, 10), e])
   );
 
   const daysInMonth = new Date(year, month, 0).getDate();

@@ -1,6 +1,7 @@
 // app/(dashboard)/businesses/[id]/photos/page.tsx
 import { notFound } from "next/navigation";
-import { getBusinessById, getPhotosByBusiness, mockPhotoShoots } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 import { PhotoGrid } from "@/components/photo-grid";
 import { BusinessSubNav } from "@/components/business-sub-nav";
 
@@ -10,21 +11,35 @@ export default async function BusinessPhotosPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const business = getBusinessById(id);
 
-  if (!business) {
-    notFound();
-  }
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) notFound();
 
-  const photos = getPhotosByBusiness(id);
-  const shoots = mockPhotoShoots.filter((s) => s.businessId === id);
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  if (!dbUser) notFound();
+
+  const business = await prisma.business.findFirst({
+    where: { id, agencyId: dbUser.agencyId },
+  });
+  if (!business) notFound();
+
+  const shoots = await prisma.photoShoot.findMany({
+    where: { businessId: id },
+    include: { photos: true },
+    orderBy: { shootDate: "asc" },
+  });
+
+  const totalPhotos = shoots.reduce((sum, s) => sum + s.photos.length, 0);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="font-display text-xl font-semibold text-ink">{business.name}</h2>
         <p className="font-util text-sm text-ink/60">
-          {shoots.length} ימי צילומים · {photos.length} תמונות
+          {shoots.length} ימי צילומים · {totalPhotos} תמונות
         </p>
       </div>
 
@@ -38,9 +53,11 @@ export default async function BusinessPhotosPage({
             <div key={shoot.id} className="flex flex-col gap-3">
               <div className="flex items-baseline gap-2">
                 <h3 className="font-display text-sm font-semibold text-ink">{shoot.label}</h3>
-                <span className="font-util text-xs text-ink/50">{shoot.shootDate}</span>
+                <span className="font-util text-xs text-ink/50">
+                  {shoot.shootDate.toISOString().slice(0, 10)}
+                </span>
               </div>
-              <PhotoGrid photos={photos.filter((p) => p.shootId === shoot.id)} />
+              <PhotoGrid photos={shoot.photos} />
             </div>
           ))}
         </div>

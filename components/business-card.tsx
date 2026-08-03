@@ -1,7 +1,7 @@
 // components/business-card.tsx
 import Link from "next/link";
 import { ImageIcon } from "lucide-react";
-import type { Business } from "@/lib/mock-data";
+import type { Business } from "@prisma/client";
 
 export function BusinessCard({ business }: { business: Business }) {
   return (

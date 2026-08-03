@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { Sparkles, Image as ImageIcon, Loader2 } from "lucide-react";
-import type { Business, Photo } from "@/lib/mock-data";
+import type { Business, Photo } from "@prisma/client";
 import { AdCard } from "@/components/ad-card";
 
 type Mode = "single" | "batch";
@@ -192,7 +192,8 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
                   caption: r.caption,
                   textMode,
                   outputImageUrl: "",
-                  createdAt: new Date().toISOString(),
+                  eventId: null,
+                  createdAt: new Date(),
                 }}
               />
             ))}

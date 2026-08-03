@@ -1,6 +1,6 @@
 // components/photo-grid.tsx
 import { ImageIcon, CheckCircle2 } from "lucide-react";
-import type { Photo } from "@/lib/mock-data";
+import type { Photo } from "@prisma/client";
 
 export function PhotoGrid({ photos }: { photos: Photo[] }) {
   if (photos.length === 0) {

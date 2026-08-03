@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
-import type { Business } from "@/lib/mock-data";
+import type { Business } from "@prisma/client";
 
 const fontOptions = ["Rubik", "Assistant", "IBM Plex Sans Hebrew"];
 

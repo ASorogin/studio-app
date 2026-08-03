@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays } from "lucide-react";
-import { getBusinessById, mockEvents } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 import { BusinessSubNav } from "@/components/business-sub-nav";
 
 const monthNames = [
@@ -16,12 +17,25 @@ export default async function BusinessEventsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const business = getBusinessById(id);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) notFound();
+
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  if (!dbUser) notFound();
+
+  const business = await prisma.business.findFirst({
+    where: { id, agencyId: dbUser.agencyId },
+  });
   if (!business) notFound();
 
-  const relevantEvents = mockEvents
-    .filter((e) => e.categories.includes(business.industry))
-    .sort((a, b) => a.month - b.month || a.day - b.day);
+  const allEvents = await prisma.event.findMany({
+    orderBy: [{ month: "asc" }, { day: "asc" }],
+  });
+  const relevantEvents = allEvents.filter((e) => e.categories.includes(business.industry));
 
   return (
     <div className="flex flex-col gap-6">
