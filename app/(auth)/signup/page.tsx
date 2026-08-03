@@ -30,18 +30,31 @@ export default function SignupPage() {
       },
     });
 
-    setIsLoading(false);
-
     if (authError) {
+      setIsLoading(false);
       setError(authError.message);
       return;
     }
 
-    // TODO (Stage 2, next step): API route that creates the matching
-    // Agency + User rows via Prisma once the user confirms their email.
+    // עם "Confirm email" כבוי (מצב פיתוח), signUp מחזיר session פעיל מיד,
+    // כך שאפשר ליצור את שורות ה-Agency/User ב-DB ישר אחרי זה.
+    const res = await fetch("/api/auth/complete-signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agencyName: form.agencyName }),
+    });
+
+    setIsLoading(false);
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error ?? "שגיאה ביצירת הסוכנות");
+      return;
+    }
+
     setSubmitted(true);
   }
-
+  
   if (submitted) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-card border border-white/10 bg-surface p-8 text-center shadow-lg">
