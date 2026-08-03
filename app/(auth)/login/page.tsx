@@ -2,17 +2,35 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Film } from "lucide-react";
+import { Film, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Stage 1: UI only — no real Supabase Auth call yet (Stage 2).
-    alert("התחברות תיפעל אחרי חיבור Supabase Auth בשלב 2");
+    setError(null);
+    setIsLoading(true);
+
+    const supabase = createClient();
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+
+    setIsLoading(false);
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    router.push("/");
+    router.refresh();
   }
 
   return (
@@ -53,11 +71,17 @@ export default function LoginPage() {
           />
         </label>
 
+        {error && (
+          <p className="rounded-sm bg-signal/10 px-3 py-2 font-util text-xs text-signal">{error}</p>
+        )}
+
         <button
           type="submit"
-          className="mt-2 rounded-sm bg-flash px-4 py-2.5 font-body text-sm font-semibold text-flash-ink transition-opacity hover:opacity-90"
+          disabled={isLoading}
+          className="mt-2 flex items-center justify-center gap-2 rounded-sm bg-flash px-4 py-2.5 font-body text-sm font-semibold text-flash-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          התחברות
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isLoading ? "מתחבר..." : "התחברות"}
         </button>
       </form>
 

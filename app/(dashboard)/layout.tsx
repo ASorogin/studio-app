@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Menu } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
+import { LogoutButton } from "@/components/logout-button";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -26,6 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="h-9 w-9 rounded-full bg-flash text-center font-body text-sm font-semibold leading-9 text-flash-ink">
               א
             </div>
+            <LogoutButton />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>

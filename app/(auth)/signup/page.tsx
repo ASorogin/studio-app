@@ -3,19 +3,58 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Film } from "lucide-react";
+import { Film, Loader2, MailCheck } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
   const [form, setForm] = useState({ agencyName: "", email: "", password: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   function handleChange(field: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Stage 1: UI only — no real Supabase Auth call yet (Stage 2).
-    alert("הרשמה תיפעל אחרי חיבור Supabase Auth בשלב 2");
+    setError(null);
+    setIsLoading(true);
+
+    const supabase = createClient();
+    const { error: authError } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: {
+        data: { agency_name: form.agencyName },
+      },
+    });
+
+    setIsLoading(false);
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    // TODO (Stage 2, next step): API route that creates the matching
+    // Agency + User rows via Prisma once the user confirms their email.
+    setSubmitted(true);
+  }
+
+  if (submitted) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-card border border-white/10 bg-surface p-8 text-center shadow-lg">
+        <MailCheck className="h-8 w-8 text-success" />
+        <h1 className="font-display text-lg font-bold text-ink">כמעט סיימנו</h1>
+        <p className="font-body text-sm text-ink/60">
+          שלחנו מייל אימות ל-{form.email}. יש ללחוץ על הקישור כדי להשלים את ההרשמה.
+        </p>
+        <Link href="/login" className="mt-2 font-util text-xs text-indigo hover:underline">
+          חזרה להתחברות
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -63,11 +102,17 @@ export default function SignupPage() {
           />
         </label>
 
+        {error && (
+          <p className="rounded-sm bg-signal/10 px-3 py-2 font-util text-xs text-signal">{error}</p>
+        )}
+
         <button
           type="submit"
-          className="mt-2 rounded-sm bg-flash px-4 py-2.5 font-body text-sm font-semibold text-flash-ink transition-opacity hover:opacity-90"
+          disabled={isLoading}
+          className="mt-2 flex items-center justify-center gap-2 rounded-sm bg-flash px-4 py-2.5 font-body text-sm font-semibold text-flash-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          יצירת חשבון
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isLoading ? "יוצר חשבון..." : "יצירת חשבון"}
         </button>
       </form>
 
