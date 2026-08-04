@@ -41,28 +41,46 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
     }
   }
 
-  function handleGenerate() {
+  async function handleGenerate() {
     if (selectedIds.length === 0) return;
     setIsGenerating(true);
     setResults([]);
 
-    // Stage 1: mocked — real version calls /api/ads/render (Playwright) + /api/ads/generate-text
-    setTimeout(() => {
-      const mocked: GeneratedResult[] = selectedIds.map((photoId, i) => ({
+    const generated: GeneratedResult[] = [];
+
+    for (let i = 0; i < selectedIds.length; i++) {
+      const photoId = selectedIds[i];
+
+      let headlineText = headline;
+      let captionText = caption;
+
+      if (textMode === "auto") {
+        const res = await fetch("/api/ads/generate-text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ businessId: business.id, format }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          headlineText = data.headline;
+          captionText = data.caption;
+        } else {
+          headlineText = business.keywords[0] ?? business.industry;
+          captionText = "בואו לבקר אותנו השבוע.";
+        }
+      }
+
+      generated.push({
         id: `mock_${photoId}_${i}`,
         format,
-        headline:
-          textMode === "auto"
-            ? `${business.keywords[0] ?? business.industry} — עכשיו אצל ${business.name}`
-            : headline || "כותרת ללא שם",
-        caption:
-          textMode === "auto"
-            ? `${business.name}: ${business.keywords.slice(0, 2).join(", ")}. בואו לבקר אותנו השבוע.`
-            : caption || "אין טקסט",
-      }));
-      setResults(mocked);
-      setIsGenerating(false);
-    }, 1200);
+        headline: headlineText || "כותרת ללא שם",
+        caption: captionText || "אין טקסט",
+      });
+    }
+
+    setResults(generated);
+    setIsGenerating(false);
   }
 
   const availablePhotos = photos.filter((p) => p.status === "available" || selectedIds.includes(p.id));
