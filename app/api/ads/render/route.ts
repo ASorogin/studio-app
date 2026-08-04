@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { renderAdImage } from "@/lib/render-ad";
+import { renderAdImage, buildFallbackImagePrompt } from "@/lib/render-ad";
+import { generateAdImageWithAI } from "@/lib/ai-image";
 
 const BUCKET = "business-photos";
 
@@ -21,7 +22,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "לא נמצא משתמש" }, { status: 401 });
   }
 
-  const { businessId, photoId, headline, caption, format, textMode, eventId } = await request.json();
+  const { businessId, photoId, headline, caption, format, textMode, eventId, imagePrompt } =
+    await request.json();
 
   const business = await prisma.business.findFirst({
     where: { id: businessId, agencyId: dbUser.agencyId },
@@ -48,17 +50,43 @@ export async function POST(request: Request) {
           logoBuffer = Buffer.from(await logoRes.arrayBuffer());
         }
       } catch {
-        // לוגו לא זמין מכל סיבה — ממשיכים בלי לוגו, לא חוסמים את התהליך
+        // לוגו לא זמין — ממשיכים בלי לוגו
       }
     }
 
-    const outputBuffer = await renderAdImage({ photoBuffer, logoBuffer, format });
+    // שלב 1: sharp מדביק לוגו (אם יש) ומתאים גודל — בדיוק כמו קודם.
+    const composedBuffer = await renderAdImage({ photoBuffer, logoBuffer, format });
+
+    // שלב 2: ניסיון להעשיר עם AI (גרדיאנט + טקסט מוטבע). אם נכשל מכל
+    // סיבה (רשת, מכסה, שגיאת API) — נופלים חזרה לתמונה מ-sharp בלבד,
+    // בלי טקסט מוטבע. ה-Ad עדיין נוצר בהצלחה; ה-caption הנפרד עדיין
+    // מוצג תמיד ב-UI, אז שום מידע לא אובד למשתמש.
+    let finalBuffer = composedBuffer;
+    try {
+      const subheadline = caption.split("\n")[0].split(".")[0] + ".";
+      const promptToUse =
+        imagePrompt ||
+        buildFallbackImagePrompt({
+          business,
+          headline,
+          subheadline,
+          hasLogo: !!logoBuffer,
+        });
+
+      finalBuffer = await generateAdImageWithAI({
+        imageBuffer: composedBuffer,
+        prompt: promptToUse,
+        format,
+      });
+    } catch (err) {
+      console.error("יצירת תמונה עם AI נכשלה, נופלים חזרה לתמונה בסיסית:", err);
+    }
 
     const admin = createAdminClient();
     const path = `${dbUser.agencyId}/${businessId}/ads/${Date.now()}.png`;
     const { error: uploadError } = await admin.storage
       .from(BUCKET)
-      .upload(path, outputBuffer, { contentType: "image/png", upsert: true });
+      .upload(path, finalBuffer, { contentType: "image/png", upsert: true });
     if (uploadError) throw uploadError;
 
     const { data: publicUrlData } = admin.storage.from(BUCKET).getPublicUrl(path);

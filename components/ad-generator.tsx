@@ -14,7 +14,7 @@ type StatusFilter = "all" | "available" | "used";
 type SortOrder = "newest" | "oldest";
 
 type GeneratedResult = {
-  id: string; // ה-id האמיתי של ה-Ad ב-DB
+  id: string;
   format: Format;
   headline: string;
   caption: string;
@@ -87,6 +87,7 @@ export function AdGenerator({
       const photoId = selectedIds[i];
       let headlineText = headline;
       let captionText = caption;
+      let imagePromptToUse: string | undefined;
 
       if (textMode === "auto") {
         const textRes = await fetch("/api/ads/generate-text", {
@@ -105,7 +106,7 @@ export function AdGenerator({
           captionText = data.hashtags?.length
             ? data.caption + "\n\n" + data.hashtags.map((h: string) => "#" + h).join(" ")
             : data.caption;
-          console.log("=== imagePrompt שנוצר ===\n", data.imagePrompt);
+          imagePromptToUse = data.imagePrompt;
         } else {
           headlineText = business.keywords[0] ?? business.industry;
           captionText = "בואו לבקר אותנו השבוע.";
@@ -128,6 +129,7 @@ export function AdGenerator({
           format,
           textMode,
           eventId: event?.id,
+          imagePrompt: imagePromptToUse,
         }),
       });
       if (renderRes.ok) {

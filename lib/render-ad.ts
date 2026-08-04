@@ -50,3 +50,37 @@ export async function renderAdImage({
     .png()
     .toBuffer();
 }
+
+export function buildFallbackImagePrompt({
+  business,
+  headline,
+  subheadline,
+  hasLogo,
+}: {
+  business: { colorPrimary: string; colorSecondary: string; fontFamily: string };
+  headline: string;
+  subheadline: string;
+  hasLogo: boolean;
+}): string {
+  const fontStyleHints: Record<string, string> = {
+    Rubik: "bold, geometric, modern sans-serif typography with strong character",
+    Assistant: "clean, soft, friendly sans-serif typography with rounded feel",
+    "IBM Plex Sans Hebrew": "technical, precise, professional sans-serif typography",
+  };
+  const fontStyleHint = fontStyleHints[business.fontFamily] ?? "clean modern sans-serif typography";
+
+  return (
+    "Take the provided image exactly as it is and keep it completely intact. " +
+    "Do not modify, replace, or recreate any part of the image content. " +
+    (hasLogo
+      ? "The logo (a small white circle) in the upper corner must remain untouched in its exact position. "
+      : "") +
+    "Add a dark gradient overlay on the bottom third of the image, fading from transparent at two-thirds height to solid dark at the bottom. " +
+    `Over this gradient, place the headline '${headline}' in large, bold, ${fontStyleHint}, in white color with a subtle text shadow for readability. ` +
+    `Below the headline, place the subtitle '${subheadline}' in smaller white text with the same subtle shadow effect. ` +
+    "Ensure no text overlaps with the logo area. " +
+    `Use the primary color ${business.colorPrimary} and secondary color ${business.colorSecondary} only as decorative supporting elements (such as a thin line accent or subtle border), never as primary text color. ` +
+    "The final design should be professional and unified, with the image remaining the focal point. " +
+    "No additional text, tags, watermarks, or graphic elements beyond what is specified."
+  );
+}
