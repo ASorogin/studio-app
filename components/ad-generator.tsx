@@ -105,6 +105,7 @@ export function AdGenerator({
           captionText = data.hashtags?.length
             ? data.caption + "\n\n" + data.hashtags.map((h: string) => "#" + h).join(" ")
             : data.caption;
+          console.log("=== imagePrompt שנוצר ===\n", data.imagePrompt);
         } else {
           headlineText = business.keywords[0] ?? business.industry;
           captionText = "בואו לבקר אותנו השבוע.";
