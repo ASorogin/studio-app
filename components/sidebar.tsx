@@ -3,12 +3,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Settings, CreditCard, Film, X } from "lucide-react";
+import { LayoutDashboard, History, Settings, CreditCard, Film, CalendarDays, X } from "lucide-react";
 import { mockAgency } from "@/lib/mock-data";
 
 const navItems = [
   { href: "/", label: "לוח בקרה", icon: LayoutDashboard },
   { href: "/history", label: "היסטוריית פרסומות", icon: History },
+  { href: "/events", label: "חגים ואירועים", icon: CalendarDays },
   { href: "/settings", label: "הגדרות חשבון", icon: Settings },
   { href: "/billing", label: "תשלום ומנוי", icon: CreditCard },
 ];
