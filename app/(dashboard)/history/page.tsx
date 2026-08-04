@@ -17,10 +17,19 @@ export default async function HistoryPage() {
   const businesses = await prisma.business.findMany({
     where: { agencyId: dbUser.agencyId },
   });
+  const businessIds = businesses.map((b) => b.id);
 
   const ads = await prisma.ad.findMany({
-    where: { businessId: { in: businesses.map((b) => b.id) } },
+    where: { businessId: { in: businessIds } },
   });
+
+  const calendarEntries = await prisma.calendarEntry.findMany({
+    where: { businessId: { in: businessIds }, adId: { not: null } },
+  });
+  const scheduledByAdId: Record<string, string> = {};
+  for (const entry of calendarEntries) {
+    if (entry.adId) scheduledByAdId[entry.adId] = entry.date.toISOString().slice(0, 10);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,7 +37,7 @@ export default async function HistoryPage() {
         <h2 className="font-display text-xl font-semibold text-ink">היסטוריית פרסומות</h2>
         <p className="font-util text-sm text-ink/60">{ads.length} פרסומות</p>
       </div>
-      <HistoryList ads={ads} businesses={businesses} />
+      <HistoryList ads={ads} businesses={businesses} scheduledByAdId={scheduledByAdId} />
     </div>
   );
 }

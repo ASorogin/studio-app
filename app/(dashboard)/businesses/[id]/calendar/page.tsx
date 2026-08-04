@@ -32,6 +32,13 @@ export default async function BusinessCalendarPage({
     orderBy: { date: "asc" },
   });
 
+  const allAds = await prisma.ad.findMany({
+    where: { businessId: id },
+    orderBy: { createdAt: "desc" },
+  });
+  const scheduledAdIds = new Set(entries.map((e) => e.adId).filter((x): x is string => !!x));
+  const unscheduledAds = allAds.filter((ad) => !scheduledAdIds.has(ad.id));
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -39,7 +46,7 @@ export default async function BusinessCalendarPage({
         <p className="font-util text-sm text-ink/60">תכנון תוכן</p>
       </div>
       <BusinessSubNav businessId={business.id} />
-      <BusinessCalendar entries={entries} />
+      <BusinessCalendar businessId={business.id} entries={entries} unscheduledAds={unscheduledAds} />
     </div>
   );
 }

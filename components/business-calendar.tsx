@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, ChevronLeft, X, Trash2, Loader2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, X, Trash2, Loader2, CalendarPlus } from "lucide-react";
 import type { CalendarEntry, Ad } from "@prisma/client";
 import { AdActions } from "@/components/ad-actions";
 
@@ -18,15 +18,22 @@ const monthNames = [
 const formatLabels: Record<string, string> = { feed: "פיד", story: "סטורי", reel: "ריל" };
 
 export function BusinessCalendar({
+  businessId,
   entries,
+  unscheduledAds,
 }: {
+  businessId: string;
   entries: EntryWithAd[];
+  unscheduledAds: Ad[];
 }) {
   const [year, setYear] = useState(2026);
   const [month, setMonth] = useState(8);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [localEntries, setLocalEntries] = useState(entries);
+  const [localUnscheduled, setLocalUnscheduled] = useState(unscheduledAds);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [schedulingAdId, setSchedulingAdId] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
 
   const entriesByDate = new Map<string, EntryWithAd[]>();
   for (const entry of localEntries) {
@@ -61,12 +68,44 @@ export function BusinessCalendar({
     }
   }
 
-  async function handleRemove(entryId: string) {
+  function openDay(dateStr: string) {
+    setSelectedDate(dateStr);
+    setShowPicker(false);
+  }
+
+  async function handleRemove(entryId: string, adId: string | null) {
     setRemovingId(entryId);
     const res = await fetch(`/api/calendar-entries/${entryId}`, { method: "DELETE" });
     setRemovingId(null);
     if (res.ok) {
+      const removedEntry = localEntries.find((e) => e.id === entryId);
       setLocalEntries((prev) => prev.filter((e) => e.id !== entryId));
+      if (adId && removedEntry?.ad) {
+        setLocalUnscheduled((prev) => [removedEntry.ad as Ad, ...prev]);
+      }
+    }
+  }
+
+  async function handleScheduleFromHistory(ad: Ad) {
+    if (!selectedDate) return;
+    setSchedulingAdId(ad.id);
+
+    const res = await fetch("/api/calendar-entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businessId, adId: ad.id, date: selectedDate }),
+    });
+
+    setSchedulingAdId(null);
+
+    if (res.ok) {
+      const data = await res.json();
+      setLocalEntries((prev) => [
+        ...prev.filter((e) => e.id !== data.entry.id),
+        { ...data.entry, date: new Date(data.entry.date), ad },
+      ]);
+      setLocalUnscheduled((prev) => prev.filter((a) => a.id !== ad.id));
+      setShowPicker(false);
     }
   }
 
@@ -101,7 +140,7 @@ export function BusinessCalendar({
               <button
                 key={dateStr}
                 type="button"
-                onClick={() => setSelectedDate(dateStr)}
+                onClick={() => openDay(dateStr)}
                 className={`relative flex aspect-square flex-col items-center justify-center gap-0.5 rounded-sm border font-util text-[10px] transition-colors sm:text-xs ${
                   hasContent
                     ? "border-success/30 bg-success/15 text-success hover:bg-success/25"
@@ -134,7 +173,7 @@ export function BusinessCalendar({
       {selectedDate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedDate(null)}>
           <div
-            className="flex max-h-[80vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-card border border-border bg-surface p-6 shadow-card-lg"
+            className="flex max-h-[85vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-card border border-border bg-surface p-6 shadow-card-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -176,7 +215,7 @@ export function BusinessCalendar({
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleRemove(entry.id)}
+                      onClick={() => handleRemove(entry.id, entry.adId)}
                       disabled={removingId === entry.id}
                       className="self-start text-ink/30 hover:text-signal disabled:opacity-40"
                       aria-label="הסרה מהתכנון"
@@ -187,6 +226,56 @@ export function BusinessCalendar({
                 ))}
               </div>
             )}
+
+            <div className="border-t border-border pt-4">
+              {!showPicker ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPicker(true)}
+                  disabled={localUnscheduled.length === 0}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-sm border border-dashed border-border bg-paper px-4 py-2.5 font-util text-xs text-ink/60 hover:border-ink/30 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                  {localUnscheduled.length === 0
+                    ? "אין פרסומות זמינות מההיסטוריה לתזמון"
+                    : "הוספת פרסומת מההיסטוריה ליום זה"}
+                </button>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <span className="font-util text-xs text-ink/60">בחירת פרסומת מההיסטוריה:</span>
+                  <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
+                    {localUnscheduled.map((ad) => (
+                      <button
+                        key={ad.id}
+                        type="button"
+                        onClick={() => handleScheduleFromHistory(ad)}
+                        disabled={schedulingAdId === ad.id}
+                        className="flex items-center gap-3 rounded-sm border border-border bg-paper p-2 text-right hover:border-flash disabled:opacity-50"
+                      >
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-sm bg-paper-2">
+                          {ad.outputImageUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={ad.outputImageUrl} alt={ad.headline} className="h-full w-full object-cover" />
+                          )}
+                        </div>
+                        <div className="flex flex-1 flex-col gap-0.5">
+                          <span className="line-clamp-1 font-body text-xs font-medium text-ink">{ad.headline}</span>
+                          <span className="font-util text-[10px] text-ink/50">{formatLabels[ad.format]}</span>
+                        </div>
+                        {schedulingAdId === ad.id && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-ink/40" />}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPicker(false)}
+                    className="self-start font-util text-xs text-ink/50 hover:text-ink"
+                  >
+                    ביטול
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

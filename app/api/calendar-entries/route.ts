@@ -34,18 +34,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "פרסומת לא נמצאה" }, { status: 404 });
   }
 
-  // מונע כפילות אם אותה פרסומת בדיוק כבר מתוזמנת לאותו תאריך —
-  // אבל מאפשר כמה פרסומות שונות לאותו תאריך (פוסטים שונים לרשתות שונות).
-  const existing = await prisma.calendarEntry.findFirst({
-    where: { businessId, adId, date: new Date(date) },
-  });
-  if (existing) {
-    return NextResponse.json({ ok: true, entry: existing });
-  }
+  // אם הפרסומת הזו כבר מתוזמנת למקום אחר — מזיזים אותה לתאריך החדש
+  // (מעדכנים את הרשומה הקיימת) במקום ליצור כפילות. פרסומת אחת = תאריך אחד.
+  const existingForAd = await prisma.calendarEntry.findFirst({ where: { businessId, adId } });
 
-  const entry = await prisma.calendarEntry.create({
-    data: { businessId, adId, date: new Date(date), status: "ready" },
-  });
+  const entry = existingForAd
+    ? await prisma.calendarEntry.update({
+        where: { id: existingForAd.id },
+        data: { date: new Date(date), status: "ready" },
+      })
+    : await prisma.calendarEntry.create({
+        data: { businessId, adId, date: new Date(date), status: "ready" },
+      });
 
   return NextResponse.json({ ok: true, entry });
 }
