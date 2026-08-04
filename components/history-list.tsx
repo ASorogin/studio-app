@@ -4,6 +4,7 @@
 import { useState, useMemo } from "react";
 import type { Ad, Business } from "@prisma/client";
 import { AdCard } from "@/components/ad-card";
+import { AdActions } from "@/components/ad-actions";
 
 export function HistoryList({ ads, businesses }: { ads: Ad[]; businesses: Business[] }) {
   const [businessFilter, setBusinessFilter] = useState<string>("all");
@@ -68,6 +69,7 @@ export function HistoryList({ ads, businesses }: { ads: Ad[]; businesses: Busine
             <div key={ad.id} className="flex flex-col gap-1.5">
               <AdCard ad={ad} />
               <span className="font-util text-[11px] text-ink/50">{businessName(ad.businessId)}</span>
+              <AdActions imageUrl={ad.outputImageUrl} headline={ad.headline} caption={ad.caption} />
             </div>
           ))}
         </div>

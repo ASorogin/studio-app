@@ -165,8 +165,8 @@ model CalendarEntry {
   adId       String?
   ad         Ad?            @relation(fields: [adId], references: [id])
 
-  @@unique([businessId, date])
   @@index([businessId])
+  @@index([businessId, date])
 }
 
 model Subscription {

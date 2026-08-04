@@ -28,6 +28,8 @@ export default async function BusinessCalendarPage({
 
   const entries = await prisma.calendarEntry.findMany({
     where: { businessId: id },
+    include: { ad: true },
+    orderBy: { date: "asc" },
   });
 
   return (
@@ -37,7 +39,7 @@ export default async function BusinessCalendarPage({
         <p className="font-util text-sm text-ink/60">תכנון תוכן</p>
       </div>
       <BusinessSubNav businessId={business.id} />
-      <BusinessCalendar businessId={business.id} entries={entries} />
+      <BusinessCalendar entries={entries} />
     </div>
   );
 }

@@ -2,9 +2,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Sparkles, Image as ImageIcon, Loader2, CheckCircle2 } from "lucide-react";
+import { Sparkles, Image as ImageIcon, Loader2, CheckCircle2, CalendarPlus, Check } from "lucide-react";
 import type { Business, Photo, Event } from "@prisma/client";
 import { AdCard } from "@/components/ad-card";
+import { AdActions } from "@/components/ad-actions";
 
 type Mode = "single" | "batch";
 type TextMode = "auto" | "manual";
@@ -13,11 +14,12 @@ type StatusFilter = "all" | "available" | "used";
 type SortOrder = "newest" | "oldest";
 
 type GeneratedResult = {
-  id: string;
+  id: string; // ה-id האמיתי של ה-Ad ב-DB
   format: Format;
   headline: string;
   caption: string;
   outputImageUrl: string;
+  scheduledDate: string | null;
 };
 
 const formatOptions: { value: Format; label: string }[] = [
@@ -37,7 +39,15 @@ const sortOrderOptions: { value: SortOrder; label: string }[] = [
   { value: "oldest", label: "מהישן לחדש" },
 ];
 
-export function AdGenerator({ business, photos, event }: { business: Business; photos: Photo[]; event: Event | null; }) {
+export function AdGenerator({
+  business,
+  photos,
+  event,
+}: {
+  business: Business;
+  photos: Photo[];
+  event: Event | null;
+}) {
   const [mode, setMode] = useState<Mode>("single");
   const [textMode, setTextMode] = useState<TextMode>("auto");
   const [format, setFormat] = useState<Format>("feed");
@@ -48,6 +58,7 @@ export function AdGenerator({ business, photos, event }: { business: Business; p
   const [caption, setCaption] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedResult[]>([]);
+  const [schedulingId, setSchedulingId] = useState<string | null>(null);
 
   function toggleSelect(id: string) {
     if (mode === "single") {
@@ -102,6 +113,7 @@ export function AdGenerator({ business, photos, event }: { business: Business; p
       captionText = captionText || "אין טקסט";
 
       let outputImageUrl = "";
+      let realAdId = `temp_${photoId}_${i}`;
       const renderRes = await fetch("/api/ads/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,19 +130,38 @@ export function AdGenerator({ business, photos, event }: { business: Business; p
       if (renderRes.ok) {
         const data = await renderRes.json();
         outputImageUrl = data.ad.outputImageUrl;
+        realAdId = data.ad.id;
       }
 
       generated.push({
-        id: `${photoId}_${i}`,
+        id: realAdId,
         format,
         headline: headlineText,
         caption: captionText,
         outputImageUrl,
+        scheduledDate: null,
       });
     }
 
     setResults(generated);
     setIsGenerating(false);
+  }
+
+  async function handleSchedule(adId: string, date: string) {
+    if (!date) return;
+    setSchedulingId(adId);
+
+    const res = await fetch("/api/calendar-entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businessId: business.id, adId, date }),
+    });
+
+    setSchedulingId(null);
+
+    if (res.ok) {
+      setResults((prev) => prev.map((r) => (r.id === adId ? { ...r, scheduledDate: date } : r)));
+    }
   }
 
   return (
@@ -143,6 +174,7 @@ export function AdGenerator({ business, photos, event }: { business: Business; p
           </span>
         </div>
       )}
+
       <div className="flex flex-wrap gap-4">
         <ToggleGroup
           label="מצב"
@@ -299,21 +331,40 @@ export function AdGenerator({ business, photos, event }: { business: Business; p
           <h3 className="font-display text-sm font-semibold text-ink">תוצאה</h3>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {results.map((r) => (
-              <AdCard
-                key={r.id}
-                ad={{
-                  id: r.id,
-                  businessId: business.id,
-                  photoId: "",
-                  format: r.format,
-                  headline: r.headline,
-                  caption: r.caption,
-                  textMode,
-                  outputImageUrl: r.outputImageUrl,
-                  eventId: null,
-                  createdAt: new Date(),
-                }}
-              />
+              <div key={r.id} className="flex flex-col gap-2">
+                <AdCard
+                  ad={{
+                    id: r.id,
+                    businessId: business.id,
+                    photoId: "",
+                    format: r.format,
+                    headline: r.headline,
+                    caption: r.caption,
+                    textMode,
+                    outputImageUrl: r.outputImageUrl,
+                    eventId: event?.id ?? null,
+                    createdAt: new Date(),
+                  }}
+                />
+                <AdActions imageUrl={r.outputImageUrl} headline={r.headline} caption={r.caption} />
+
+                {r.scheduledDate ? (
+                  <span className="flex items-center gap-1.5 rounded-sm bg-success/10 px-2.5 py-1.5 font-util text-xs text-success">
+                    <Check className="h-3.5 w-3.5" />
+                    מתוזמן ל-{new Date(r.scheduledDate).toLocaleDateString("he-IL")}
+                  </span>
+                ) : (
+                  <label className="flex items-center gap-1.5 rounded-sm border border-border bg-paper px-2.5 py-1.5">
+                    <CalendarPlus className="h-3.5 w-3.5 shrink-0 text-ink/50" />
+                    <input
+                      type="date"
+                      disabled={schedulingId === r.id}
+                      onChange={(e) => handleSchedule(r.id, e.target.value)}
+                      className="w-full bg-transparent font-util text-xs text-ink/70 outline-none"
+                    />
+                  </label>
+                )}
+              </div>
             ))}
           </div>
         </div>
