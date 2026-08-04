@@ -67,7 +67,7 @@ export default async function BusinessEventsPage({
                 </div>
               </div>
               <Link
-                href={`/businesses/${business.id}/generate`}
+                href={`/businesses/${business.id}/generate?eventId=${event.id}`}
                 className="rounded-sm bg-flash px-3 py-1.5 font-util text-xs font-semibold text-flash-ink hover:opacity-90"
               >
                 יצירת פרסומת לאירוע

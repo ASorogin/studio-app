@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from "react";
 import { Sparkles, Image as ImageIcon, Loader2, CheckCircle2 } from "lucide-react";
-import type { Business, Photo } from "@prisma/client";
+import type { Business, Photo, Event } from "@prisma/client";
 import { AdCard } from "@/components/ad-card";
 
 type Mode = "single" | "batch";
@@ -37,7 +37,7 @@ const sortOrderOptions: { value: SortOrder; label: string }[] = [
   { value: "oldest", label: "מהישן לחדש" },
 ];
 
-export function AdGenerator({ business, photos }: { business: Business; photos: Photo[] }) {
+export function AdGenerator({ business, photos, event }: { business: Business; photos: Photo[]; event: Event | null; }) {
   const [mode, setMode] = useState<Mode>("single");
   const [textMode, setTextMode] = useState<TextMode>("auto");
   const [format, setFormat] = useState<Format>("feed");
@@ -81,7 +81,12 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
         const textRes = await fetch("/api/ads/generate-text", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ businessId: business.id, format }),
+          body: JSON.stringify({
+            businessId: business.id,
+            format,
+            eventName: event?.name,
+            eventType: event?.type,
+          }),
         });
         if (textRes.ok) {
           const data = await textRes.json();
@@ -107,6 +112,7 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
           caption: captionText,
           format,
           textMode,
+          eventId: event?.id,
         }),
       });
       if (renderRes.ok) {
@@ -129,6 +135,14 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
 
   return (
     <div className="flex flex-col gap-6">
+      {event && (
+        <div className="flex items-center gap-2 rounded-sm bg-indigo/10 px-4 py-2.5">
+          <span className="text-lg">{event.emoji}</span>
+          <span className="font-util text-sm text-indigo">
+            יוצרים פרסומת לאירוע: <strong>{event.name}</strong>
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap gap-4">
         <ToggleGroup
           label="מצב"

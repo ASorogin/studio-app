@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "לא נמצא משתמש" }, { status: 401 });
   }
 
-  const { businessId, format, eventName } = await request.json();
+  const { businessId, format, eventName, eventType } = await request.json();
 
   const business = await prisma.business.findFirst({
     where: { id: businessId, agencyId: dbUser.agencyId },
@@ -34,7 +34,12 @@ export async function POST(request: Request) {
   const formatLabels = { feed: "פוסט פיד", story: "סטורי", reel: "ריל" };
   const formatLabel = formatLabels[format as "feed" | "story" | "reel"] ?? "פוסט";
 
-  const eventLine = eventName ? "בהקשר לאירוע/חג: " + eventName : "";
+  const eventTypeLabels: Record<string, string> = { holiday: "חג", international_day: "יום בינלאומי" };
+  const eventKindLabel = eventType ? eventTypeLabels[eventType as string] ?? "" : "";
+  const eventLine = eventName
+    ? "הפרסומת הזו מיועדת ל" + (eventKindLabel || "אירוע") + ": " + eventName +
+      ". הטקסט חייב להתייחס בפועל לאירוע הזה, לא רק לעסק באופן כללי."
+    : "";
 
   const prompt = "כתוב טקסט פרסומת קצר לרשתות חברתיות בעברית עבור העסק הבא:\n\n" +
     "שם העסק: " + business.name + "\n" +

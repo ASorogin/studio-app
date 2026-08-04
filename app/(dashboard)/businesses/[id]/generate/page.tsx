@@ -7,10 +7,13 @@ import { AdGenerator } from "@/components/ad-generator";
 
 export default async function BusinessGeneratePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ eventId?: string }>;
 }) {
   const { id } = await params;
+  const { eventId } = await searchParams;
 
   const supabase = await createClient();
   const {
@@ -32,6 +35,8 @@ export default async function BusinessGeneratePage({
   });
   const photos = shoots.flatMap((s) => s.photos);
 
+  const event = eventId ? await prisma.event.findUnique({ where: { id: eventId } }) : null;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -39,7 +44,7 @@ export default async function BusinessGeneratePage({
         <p className="font-util text-sm text-ink/60">יצירת פרסומת חדשה</p>
       </div>
       <BusinessSubNav businessId={business.id} />
-      <AdGenerator business={business} photos={photos} />
+      <AdGenerator business={business} photos={photos} event={event} />
     </div>
   );
 }
