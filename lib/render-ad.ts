@@ -1,110 +1,52 @@
 // lib/render-ad.ts
-import type { Business } from "@prisma/client";
+import sharp from "sharp";
 
-export const FORMAT_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  feed: { width: 1080, height: 1080 },
-  story: { width: 1080, height: 1920 },
-  reel: { width: 1080, height: 1920 },
+const MAX_DIMENSIONS: Record<string, { maxWidth: number; maxHeight: number }> = {
+  feed: { maxWidth: 1080, maxHeight: 1350 },
+  story: { maxWidth: 1080, maxHeight: 1920 },
+  reel: { maxWidth: 1080, maxHeight: 1920 },
 };
 
-export function buildAdHtml({
-  photoUrl,
-  headline,
-  caption,
-  business,
-  width,
-  height,
-}: {
-  photoUrl: string;
-  headline: string;
-  caption: string;
-  business: Business;
-  width: number;
-  height: number;
-}) {
-  const badgeHtml = business.logoUrl
-    ? `<img class="badge-logo" src="${business.logoUrl}" />`
-    : `<div class="badge-text">${business.name}</div>`;
+async function makeCircularLogo(buffer: Buffer, size: number): Promise<Buffer> {
+  const circleMask = Buffer.from(
+    `<svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#fff"/></svg>`
+  );
+  const resizedLogo = await sharp(buffer).resize(size, size, { fit: "cover" }).toBuffer();
+  return sharp(resizedLogo).composite([{ input: circleMask, blend: "dest-in" }]).png().toBuffer();
+}
 
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head>
-<meta charset="utf-8" />
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@700;800&family=Assistant:wght@400;600&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    width: ${width}px;
-    height: ${height}px;
-    position: relative;
-    overflow: hidden;
-    font-family: 'Assistant', sans-serif;
+export async function renderAdImage({
+  photoBuffer,
+  logoBuffer,
+  format,
+}: {
+  photoBuffer: Buffer;
+  logoBuffer: Buffer | null;
+  format: string;
+}): Promise<Buffer> {
+  const { maxWidth, maxHeight } = MAX_DIMENSIONS[format] ?? MAX_DIMENSIONS.feed;
+
+  // fit: "inside" משנה גודל כך שהתמונה לא חורגת מהמגבלות, תוך שמירה
+  // מלאה על יחס הגובה-רוחב המקורי — בלי חיתוך, בלי עיוות.
+  // withoutEnlargement מונע הגדלה של תמונה שכבר קטנה מהמגבלה.
+  const resizedPhoto = sharp(photoBuffer).resize(maxWidth, maxHeight, {
+    fit: "inside",
+    withoutEnlargement: true,
+  });
+
+  const meta = await resizedPhoto.metadata();
+  const photoWidth = meta.width ?? maxWidth;
+
+  if (!logoBuffer) {
+    return resizedPhoto.png().toBuffer();
   }
-  img.bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .overlay {
-    position: absolute;
-    left: 0; right: 0; bottom: 0;
-    padding: 48px 40px 56px;
-    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0) 100%);
-    color: white;
-    text-align: right;
-  }
-  .headline {
-    font-family: 'Rubik', sans-serif;
-    font-weight: 800;
-    font-size: 56px;
-    line-height: 1.15;
-    margin-bottom: 16px;
-  }
-  .caption {
-    font-size: 30px;
-    line-height: 1.4;
-    opacity: 0.92;
-  }
-  .badge-logo {
-    position: absolute;
-    top: 32px;
-    right: 32px;
-    width: 96px;
-    height: 96px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid white;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-  }
-  .badge-text {
-    position: absolute;
-    top: 32px;
-    right: 32px;
-    left: 32px;
-    max-width: fit-content;
-    margin-right: auto;
-    background: ${business.colorPrimary};
-    color: ${business.colorSecondary};
-    font-family: 'Rubik', sans-serif;
-    font-weight: 700;
-    font-size: 26px;
-    padding: 10px 20px;
-    border-radius: 999px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-</style>
-</head>
-<body>
-  <img class="bg" src="${photoUrl}" />
-  ${badgeHtml}
-  <div class="overlay">
-    <div class="headline">${headline}</div>
-    <div class="caption">${caption}</div>
-  </div>
-</body>
-</html>`;
+
+  const badgeSize = Math.max(60, Math.min(140, Math.round(photoWidth * 0.14)));
+  const margin = Math.round(badgeSize * 0.35);
+  const circularLogo = await makeCircularLogo(logoBuffer, badgeSize);
+
+  return resizedPhoto
+    .composite([{ input: circularLogo, top: margin, left: photoWidth - badgeSize - margin }])
+    .png()
+    .toBuffer();
 }

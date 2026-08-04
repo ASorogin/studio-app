@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buildAdHtml, FORMAT_DIMENSIONS } from "@/lib/render-ad";
+import { renderAdImage } from "@/lib/render-ad";
 
 const BUCKET = "business-photos";
 
@@ -35,41 +35,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "תמונה לא נמצאה" }, { status: 404 });
   }
 
-  const dims = FORMAT_DIMENSIONS[format as string] ?? FORMAT_DIMENSIONS.feed;
-  const html = buildAdHtml({
-    photoUrl: photo.originalUrl,
-    headline,
-    caption,
-    business,
-    width: dims.width,
-    height: dims.height,
-  });
-
-  let browser;
   try {
-    if (process.env.NODE_ENV === "production") {
-      const chromium = (await import("@sparticuz/chromium")).default;
-      const { chromium: playwrightChromium } = await import("playwright-core");
-      browser = await playwrightChromium.launch({
-        args: chromium.args,
-        executablePath: await chromium.executablePath(),
-        headless: true,
-      });
-    } else {
-      const { chromium: playwrightChromium } = await import("playwright");
-      browser = await playwrightChromium.launch();
+    const photoRes = await fetch(photo.originalUrl);
+    if (!photoRes.ok) throw new Error("שגיאה בהורדת התמונה המקורית");
+    const photoBuffer = Buffer.from(await photoRes.arrayBuffer());
+
+    let logoBuffer: Buffer | null = null;
+    if (business.logoUrl) {
+      try {
+        const logoRes = await fetch(business.logoUrl);
+        if (logoRes.ok) {
+          logoBuffer = Buffer.from(await logoRes.arrayBuffer());
+        }
+      } catch {
+        // לוגו לא זמין מכל סיבה — ממשיכים בלי לוגו, לא חוסמים את התהליך
+      }
     }
 
-    const page = await browser.newPage({ viewport: { width: dims.width, height: dims.height } });
-    await page.setContent(html, { waitUntil: "networkidle" });
-    const screenshot = await page.screenshot({ type: "png" });
-    await browser.close();
+    const outputBuffer = await renderAdImage({ photoBuffer, logoBuffer, format });
 
     const admin = createAdminClient();
     const path = `${dbUser.agencyId}/${businessId}/ads/${Date.now()}.png`;
     const { error: uploadError } = await admin.storage
       .from(BUCKET)
-      .upload(path, screenshot, { contentType: "image/png", upsert: true });
+      .upload(path, outputBuffer, { contentType: "image/png", upsert: true });
     if (uploadError) throw uploadError;
 
     const { data: publicUrlData } = admin.storage.from(BUCKET).getPublicUrl(path);
@@ -92,7 +81,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ad });
   } catch (err) {
     console.error("שגיאה ברינדור הפרסומת:", err);
-    if (browser) await browser.close().catch(() => {});
     return NextResponse.json({ error: "שגיאה ברינדור הפרסומת" }, { status: 500 });
   }
 }
