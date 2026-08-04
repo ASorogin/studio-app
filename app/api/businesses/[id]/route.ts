@@ -50,3 +50,42 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true, business: updated });
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "לא מחובר" }, { status: 401 });
+  }
+
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  if (!dbUser) {
+    return NextResponse.json({ error: "לא נמצא משתמש" }, { status: 401 });
+  }
+
+  if (dbUser.role !== "owner") {
+    return NextResponse.json({ error: "רק בעלים יכול להסיר עסק" }, { status: 403 });
+  }
+
+  const existing = await prisma.business.findFirst({
+    where: { id, agencyId: dbUser.agencyId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "עסק לא נמצא" }, { status: 404 });
+  }
+
+  // schema.prisma מוגדר עם onDelete: Cascade על PhotoShoot, Ad, CalendarEntry
+  // שמצביעים ל-Business — כלומר כל התמונות, הפרסומות, ורשומות התכנון
+  // של העסק הזה יימחקו אוטומטית יחד איתו.
+  await prisma.business.delete({ where: { id } });
+
+  return NextResponse.json({ ok: true });
+}

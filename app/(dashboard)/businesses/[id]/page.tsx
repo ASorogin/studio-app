@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { BusinessProfileForm } from "@/components/business-profile-form";
 import { BusinessSubNav } from "@/components/business-sub-nav";
+import { DeleteBusinessDialog } from "@/components/delete-business-dialog";
 
 export default async function BusinessProfilePage({
   params,
@@ -26,8 +27,6 @@ export default async function BusinessProfilePage({
     notFound();
   }
 
-  // חשוב: מסננים גם לפי agencyId — כדי שמשתמש מסוכנות א' לא יוכל
-  // לגשת לעסק של סוכנות ב' רק ע"י ניחוש ה-ID ב-URL.
   const business = await prisma.business.findFirst({
     where: { id, agencyId: dbUser.agencyId },
   });
@@ -54,6 +53,10 @@ export default async function BusinessProfilePage({
       <BusinessSubNav businessId={business.id} />
 
       <BusinessProfileForm business={business} />
+
+      {dbUser.role === "owner" && (
+        <DeleteBusinessDialog businessId={business.id} businessName={business.name} />
+      )}
     </div>
   );
 }
