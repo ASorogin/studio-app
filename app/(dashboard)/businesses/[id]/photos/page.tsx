@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { PhotoGrid } from "@/components/photo-grid";
 import { BusinessSubNav } from "@/components/business-sub-nav";
+import { PhotoUploader } from "@/components/photo-uploader";
 
 export default async function BusinessPhotosPage({
   params,
@@ -44,6 +45,8 @@ export default async function BusinessPhotosPage({
       </div>
 
       <BusinessSubNav businessId={business.id} />
+
+      <PhotoUploader businessId={business.id} />
 
       {shoots.length === 0 ? (
         <PhotoGrid photos={[]} />
