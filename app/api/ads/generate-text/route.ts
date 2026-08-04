@@ -1,3 +1,4 @@
+// app/api/ads/generate-text/route.ts
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
@@ -31,8 +32,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "עסק לא נמצא" }, { status: 404 });
   }
 
-  const formatLabels = { feed: "פוסט פיד", story: "סטורי", reel: "ריל" };
-  const formatLabel = formatLabels[format as "feed" | "story" | "reel"] ?? "פוסט";
+  const formatLabels: Record<string, string> = { feed: "פוסט פיד", story: "סטורי", reel: "ריל" };
+  const formatLabel = formatLabels[format as string] ?? "פוסט";
 
   const eventTypeLabels: Record<string, string> = { holiday: "חג", international_day: "יום בינלאומי" };
   const eventKindLabel = eventType ? eventTypeLabels[eventType as string] ?? "" : "";
@@ -41,25 +42,30 @@ export async function POST(request: Request) {
       ". הטקסט חייב להתייחס בפועל לאירוע הזה, לא רק לעסק באופן כללי."
     : "";
 
-  const prompt = "כתוב טקסט פרסומת קצר לרשתות חברתיות בעברית עבור העסק הבא:\n\n" +
-    "שם העסק: " + business.name + "\n" +
-    "תחום: " + business.industry + "\n" +
-    "מילות מפתח: " + business.keywords.join(", ") + "\n" +
-    "פורמט: " + formatLabel + "\n" +
-    eventLine + "\n\n" +
-    "החזר אך ורק JSON תקין בפורמט הבא, בלי שום טקסט נוסף לפניו או אחריו:\n" +
-    '{"headline": "כותרת קצרה וקליטה, עד 6 מילים", "caption": "משפט או שניים, טון חם ומזמין, עד 25 מילים"}';
+  const prompt = `כתוב תוכן לפוסט ברשתות חברתיות בעברית עבור העסק הבא:
+
+שם העסק: ${business.name}
+תחום: ${business.industry}
+מילות מפתח: ${business.keywords.join(", ")}
+פורמט: ${formatLabel}
+${eventLine}
+
+נדרש:
+1. headline — כותרת קצרה וקליטה (עד 6 מילים), למסך/תמונה
+2. caption — טקסט מלא לפוסט עצמו: 2-4 משפטים, טון חם ומזמין ומקצועי, שקורא לפעולה בסוף (כמו "בואו לבקר", "שריינו מקום", "שלחו הודעה"). זה הטקסט שהמשתמש בפועל יעתיק וידביק לאינסטגרם/פייסבוק — צריך לעמוד בפני עצמו כפוסט שלם, לא רק משפט תיאורי.
+3. hashtags — מערך של 6-10 האשטגים רלוונטיים בעברית (ולפחות 2-3 באנגלית אם רלוונטי לתחום), בלי הסימן # עצמו (הוא יתווסף אוטומטית בתצוגה) — משלבים תחום, מיקום כללי (ישראל), ומילות מפתח של העסק
+
+החזר אך ורק JSON תקין בפורמט הבא, בלי שום טקסט נוסף לפניו או אחריו:
+{"headline": "...", "caption": "...", "hashtags": ["...", "..."]}`;
 
   try {
     const message = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: 300,
+      max_tokens: 600,
       messages: [{ role: "user", content: prompt }],
     });
 
-    const textBlock = message.content.find(function (block) {
-      return block.type === "text";
-    });
+    const textBlock = message.content.find((block) => block.type === "text");
     if (!textBlock || textBlock.type !== "text") {
       throw new Error("לא התקבל טקסט מהמודל");
     }
@@ -71,7 +77,11 @@ export async function POST(request: Request) {
       throw new Error("תשובת המודל חסרה שדות");
     }
 
-    return NextResponse.json({ headline: parsed.headline, caption: parsed.caption });
+    return NextResponse.json({
+      headline: parsed.headline,
+      caption: parsed.caption,
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
+    });
   } catch (err) {
     console.error("שגיאה ביצירת טקסט אוטומטי:", err);
     return NextResponse.json({ error: "שגיאה ביצירת טקסט אוטומטי" }, { status: 500 });

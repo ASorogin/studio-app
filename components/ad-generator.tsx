@@ -102,7 +102,9 @@ export function AdGenerator({
         if (textRes.ok) {
           const data = await textRes.json();
           headlineText = data.headline;
-          captionText = data.caption;
+          captionText = data.hashtags?.length
+            ? data.caption + "\n\n" + data.hashtags.map((h: string) => "#" + h).join(" ")
+            : data.caption;
         } else {
           headlineText = business.keywords[0] ?? business.industry;
           captionText = "בואו לבקר אותנו השבוע.";
