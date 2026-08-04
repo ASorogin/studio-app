@@ -2,12 +2,15 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
 import type { Business } from "@prisma/client";
+import { LogoUploader } from "@/components/logo-uploader";
 
 const fontOptions = ["Rubik", "Assistant", "IBM Plex Sans Hebrew"];
 
 export function BusinessProfileForm({ business }: { business: Business }) {
+  const router = useRouter();
   const [form, setForm] = useState({
     name: business.name,
     industry: business.industry,
@@ -58,6 +61,7 @@ export function BusinessProfileForm({ business }: { business: Business }) {
     }
 
     setSaved(true);
+    router.refresh();
     setTimeout(() => setSaved(false), 2500);
   }
 
@@ -90,12 +94,11 @@ export function BusinessProfileForm({ business }: { business: Business }) {
           />
         </Field>
 
-        <Field label="קישור ללוגו (URL)">
-          <input
-            value={form.logoUrl}
-            onChange={(e) => handleChange("logoUrl", e.target.value)}
-            placeholder="https://..."
-            className="w-full rounded-sm border border-border bg-paper px-3 py-2 font-body text-sm text-ink outline-none focus:border-indigo"
+        <Field label="לוגו">
+          <LogoUploader
+            businessId={business.id}
+            currentLogoUrl={form.logoUrl}
+            onUploaded={(url) => handleChange("logoUrl", url)}
           />
         </Field>
       </section>
