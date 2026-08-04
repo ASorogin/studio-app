@@ -50,6 +50,7 @@ export function PhotoUploader({ businessId }: { businessId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         businessId,
+        path,
         url: publicUrl,
         label: file.name.replace(/\.[^/.]+$/, ""),
       }),
