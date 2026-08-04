@@ -27,11 +27,24 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
 
 function PhotoTile({ photo }: { photo: Photo }) {
   const isUsed = photo.status === "used";
+  // תמונות mock ישנות (משלב 1) עדיין מצביעות ל-"/mock/photos/..." שלא
+  // באמת קיים בפרויקט — עבורן עדיין נציג placeholder. תמונות אמיתיות
+  // שהועלו דרך Supabase Storage יוצגו בפועל.
+  const hasRealImage = !photo.thumbUrl.startsWith("/mock/");
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-card border border-border bg-surface shadow-card">
       <div className="relative flex aspect-square items-center justify-center bg-paper-2">
-        <ImageIcon className="h-8 w-8 text-ink/20" />
+        {hasRealImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photo.thumbUrl}
+            alt={photo.label}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <ImageIcon className="h-8 w-8 text-ink/20" />
+        )}
 
         <span
           className={`absolute top-2 right-2 flex items-center gap-1 rounded-sm px-2 py-0.5 font-util text-[10px] font-medium ${
