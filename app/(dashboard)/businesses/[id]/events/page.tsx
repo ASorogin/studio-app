@@ -35,7 +35,11 @@ export default async function BusinessEventsPage({
   const allEvents = await prisma.event.findMany({
     orderBy: [{ month: "asc" }, { day: "asc" }],
   });
-  const relevantEvents = allEvents.filter((e) => e.categories.includes(business.industry));
+ // מערך categories ריק = רלוונטי לכל עסק (חגים לאומיים/כלליים).
+  // מערך לא-ריק = רלוונטי רק לתעשיות הרשומות בו.
+  const relevantEvents = allEvents.filter(
+    (e) => e.categories.length === 0 || e.categories.includes(business.industry)
+  );
 
   return (
     <div className="flex flex-col gap-6">
