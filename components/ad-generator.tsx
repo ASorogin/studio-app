@@ -1,20 +1,23 @@
 // components/ad-generator.tsx
 "use client";
 
-import { useState } from "react";
-import { Sparkles, Image as ImageIcon, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Sparkles, Image as ImageIcon, Loader2, CheckCircle2 } from "lucide-react";
 import type { Business, Photo } from "@prisma/client";
 import { AdCard } from "@/components/ad-card";
 
 type Mode = "single" | "batch";
 type TextMode = "auto" | "manual";
 type Format = "feed" | "story" | "reel";
+type StatusFilter = "all" | "available" | "used";
+type SortOrder = "newest" | "oldest";
 
 type GeneratedResult = {
   id: string;
   format: Format;
   headline: string;
   caption: string;
+  outputImageUrl: string;
 };
 
 const formatOptions: { value: Format; label: string }[] = [
@@ -23,10 +26,23 @@ const formatOptions: { value: Format; label: string }[] = [
   { value: "reel", label: "ריל" },
 ];
 
+const statusFilterOptions: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "הכל" },
+  { value: "available", label: "זמינות" },
+  { value: "used", label: "נוצלו" },
+];
+
+const sortOrderOptions: { value: SortOrder; label: string }[] = [
+  { value: "newest", label: "מהחדש לישן" },
+  { value: "oldest", label: "מהישן לחדש" },
+];
+
 export function AdGenerator({ business, photos }: { business: Business; photos: Photo[] }) {
   const [mode, setMode] = useState<Mode>("single");
   const [textMode, setTextMode] = useState<TextMode>("auto");
   const [format, setFormat] = useState<Format>("feed");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [headline, setHeadline] = useState("");
   const [caption, setCaption] = useState("");
@@ -41,6 +57,14 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
     }
   }
 
+  const visiblePhotos = useMemo(() => {
+    const filtered = photos.filter((p) => statusFilter === "all" || p.status === statusFilter);
+    return [...filtered].sort((a, b) => {
+      const diff = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime();
+      return sortOrder === "newest" ? -diff : diff;
+    });
+  }, [photos, statusFilter, sortOrder]);
+
   async function handleGenerate() {
     if (selectedIds.length === 0) return;
     setIsGenerating(true);
@@ -50,19 +74,17 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
 
     for (let i = 0; i < selectedIds.length; i++) {
       const photoId = selectedIds[i];
-
       let headlineText = headline;
       let captionText = caption;
 
       if (textMode === "auto") {
-        const res = await fetch("/api/ads/generate-text", {
+        const textRes = await fetch("/api/ads/generate-text", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ businessId: business.id, format }),
         });
-
-        if (res.ok) {
-          const data = await res.json();
+        if (textRes.ok) {
+          const data = await textRes.json();
           headlineText = data.headline;
           captionText = data.caption;
         } else {
@@ -71,19 +93,39 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
         }
       }
 
+      headlineText = headlineText || "כותרת ללא שם";
+      captionText = captionText || "אין טקסט";
+
+      let outputImageUrl = "";
+      const renderRes = await fetch("/api/ads/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          photoId,
+          headline: headlineText,
+          caption: captionText,
+          format,
+          textMode,
+        }),
+      });
+      if (renderRes.ok) {
+        const data = await renderRes.json();
+        outputImageUrl = data.ad.outputImageUrl;
+      }
+
       generated.push({
-        id: `mock_${photoId}_${i}`,
+        id: `${photoId}_${i}`,
         format,
-        headline: headlineText || "כותרת ללא שם",
-        caption: captionText || "אין טקסט",
+        headline: headlineText,
+        caption: captionText,
+        outputImageUrl,
       });
     }
 
     setResults(generated);
     setIsGenerating(false);
   }
-
-  const availablePhotos = photos.filter((p) => p.status === "available" || selectedIds.includes(p.id));
 
   return (
     <div className="flex flex-col gap-6">
@@ -152,30 +194,74 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        <span className="font-util text-xs text-ink/60">
-          {mode === "single" ? "בחירת תמונה" : "בחירת תמונות (אפשר כמה)"}
-        </span>
-        {availablePhotos.length === 0 ? (
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <span className="font-util text-xs text-ink/60">
+            {mode === "single" ? "בחירת תמונה" : "בחירת תמונות (אפשר כמה)"}
+          </span>
+          <div className="flex flex-wrap gap-4">
+            <ToggleGroup
+              label="סינון"
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as StatusFilter)}
+              options={statusFilterOptions}
+            />
+            <ToggleGroup
+              label="מיון לפי העלאה"
+              value={sortOrder}
+              onChange={(v) => setSortOrder(v as SortOrder)}
+              options={sortOrderOptions}
+            />
+          </div>
+        </div>
+
+        {visiblePhotos.length === 0 ? (
           <p className="rounded-card border border-dashed border-border bg-surface p-6 text-center font-body text-sm text-ink/50">
-            אין תמונות זמינות לעסק הזה — יש להעלות תמונות בתיקייה קודם
+            אין תמונות שתואמות לסינון — יש להעלות תמונות בתיקייה קודם
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-            {availablePhotos.map((photo) => {
+            {visiblePhotos.map((photo) => {
               const isSelected = selectedIds.includes(photo.id);
+              const isUsed = photo.status === "used";
+              const hasRealImage = !photo.thumbUrl.startsWith("/mock/");
               return (
                 <button
                   key={photo.id}
                   type="button"
                   onClick={() => toggleSelect(photo.id)}
-                  className={`flex aspect-square flex-col items-center justify-center gap-1 rounded-sm border-2 bg-paper-2 transition-colors ${
+                  className={`relative flex aspect-square flex-col items-center justify-center gap-1 overflow-hidden rounded-sm border-2 bg-paper-2 transition-colors ${
                     isSelected ? "border-flash" : "border-transparent hover:border-border"
                   }`}
                 >
-                  <ImageIcon className="h-6 w-6 text-ink/30" />
-                  <span className="line-clamp-1 px-1 text-center font-util text-[10px] text-ink/60">
-                    {photo.label}
+                  {hasRealImage ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo.thumbUrl}
+                        alt={photo.label}
+                        className={`absolute inset-0 h-full w-full object-cover ${isUsed ? "opacity-60" : ""}`}
+                      />
+                      <span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1.5 py-1 text-center font-util text-[10px] text-white">
+                        {photo.label}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="h-6 w-6 text-ink/30" />
+                      <span className="line-clamp-1 px-1 text-center font-util text-[10px] text-ink/60">
+                        {photo.label}
+                      </span>
+                    </>
+                  )}
+
+                  <span
+                    className={`absolute top-1.5 right-1.5 flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 font-util text-[9px] font-medium ${
+                      isUsed ? "bg-ink/80 text-paper" : "bg-success/80 text-white"
+                    }`}
+                  >
+                    {isUsed && <CheckCircle2 className="h-2.5 w-2.5" />}
+                    {isUsed ? "נוצל" : "זמין"}
                   </span>
                 </button>
               );
@@ -196,9 +282,9 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
 
       {results.length > 0 && (
         <div className="flex flex-col gap-3 border-t border-border pt-6">
-          <h3 className="font-display text-sm font-semibold text-ink">תוצאה (מדומה)</h3>
+          <h3 className="font-display text-sm font-semibold text-ink">תוצאה</h3>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {results.map((r: GeneratedResult) => (
+            {results.map((r) => (
               <AdCard
                 key={r.id}
                 ad={{
@@ -209,7 +295,7 @@ export function AdGenerator({ business, photos }: { business: Business; photos: 
                   headline: r.headline,
                   caption: r.caption,
                   textMode,
-                  outputImageUrl: "",
+                  outputImageUrl: r.outputImageUrl,
                   eventId: null,
                   createdAt: new Date(),
                 }}
