@@ -12,6 +12,20 @@ type TextMode = "auto" | "manual";
 type Format = "feed" | "story" | "reel";
 type StatusFilter = "all" | "available" | "used";
 type SortOrder = "newest" | "oldest";
+type DesignStyle =
+  | "auto"
+  | "modern_minimal"
+  | "luxury"
+  | "bold_vibrant"
+  | "editorial"
+  | "organic"
+  | "dark_premium"
+  | "elegant"
+  | "corporate"
+  | "playful"
+  | "retro"
+  | "scandinavian"
+  | "cinematic";
 
 type GeneratedResult = {
   id: string;
@@ -39,6 +53,22 @@ const sortOrderOptions: { value: SortOrder; label: string }[] = [
   { value: "oldest", label: "מהישן לחדש" },
 ];
 
+const designStyleOptions: { value: DesignStyle; label: string }[] = [
+  { value: "auto", label: "אוטומטי (מותאם לתחום)" },
+  { value: "modern_minimal", label: "מודרני מינימלי" },
+  { value: "luxury", label: "יוקרתי" },
+  { value: "bold_vibrant", label: "נועז וצבעוני" },
+  { value: "editorial", label: "עיתונאי" },
+  { value: "organic", label: "אורגני וחם" },
+  { value: "dark_premium", label: "כהה ופרימיום" },
+  { value: "elegant", label: "אלגנטי" },
+  { value: "corporate", label: "עסקי" },
+  { value: "playful", label: "משחקי" },
+  { value: "retro", label: "וינטג'" },
+  { value: "scandinavian", label: "סקנדינבי" },
+  { value: "cinematic", label: "קולנועי" },
+];
+
 export function AdGenerator({
   business,
   photos,
@@ -56,6 +86,8 @@ export function AdGenerator({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [headline, setHeadline] = useState("");
   const [caption, setCaption] = useState("");
+  const [campaignNote, setCampaignNote] = useState("");
+  const [designStyle, setDesignStyle] = useState<DesignStyle>("auto");
   const [isGenerating, setIsGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedResult[]>([]);
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
@@ -98,21 +130,37 @@ export function AdGenerator({
             format,
             eventName: event?.name,
             eventType: event?.type,
+            campaignNote: campaignNote.trim() || undefined,
           }),
         });
+
         if (textRes.ok) {
           const data = await textRes.json();
           headlineText = data.headline;
           captionText = data.hashtags?.length
             ? data.caption + "\n\n" + data.hashtags.map((h: string) => "#" + h).join(" ")
             : data.caption;
-          imagePromptToUse = data.imagePrompt;
+
+          const imagePromptRes = await fetch("/api/ads/generate-image-prompt", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              businessId: business.id,
+              format,
+              headline: data.headline,
+              subheadline: data.subheadline,
+              designStyle,
+            }),
+          });
+          if (imagePromptRes.ok) {
+            const imgData = await imagePromptRes.json();
+            imagePromptToUse = imgData.imagePrompt;
+          }
         } else {
           headlineText = business.keywords[0] ?? business.industry;
           captionText = "בואו לבקר אותנו השבוע.";
         }
       }
-
       headlineText = headlineText || "כותרת ללא שם";
       captionText = captionText || "אין טקסט";
 
@@ -179,6 +227,33 @@ export function AdGenerator({
           </span>
         </div>
       )}
+
+      <div className="flex flex-col gap-1.5">
+        <span className="font-util text-xs text-ink/60">
+          פרטים ספציפיים להכללה (אופציונלי — למשל מבצע, שעות, תאריך)
+        </span>
+        <input
+          value={campaignNote}
+          onChange={(e) => setCampaignNote(e.target.value)}
+          placeholder='לדוגמה: "1+1 על קפה קר עד 18:00 היום בלבד"'
+          className="rounded-sm border border-border bg-paper px-3 py-2 font-body text-sm text-ink outline-none focus:border-indigo"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="font-util text-xs text-ink/60">סגנון עיצוב</span>
+        <select
+          value={designStyle}
+          onChange={(e) => setDesignStyle(e.target.value as DesignStyle)}
+          className="w-fit rounded-sm border border-border bg-paper px-3 py-2 font-body text-sm text-ink outline-none focus:border-indigo"
+        >
+          {designStyleOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="flex flex-wrap gap-4">
         <ToggleGroup
