@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { renderAdImage, buildFallbackImagePrompt } from "@/lib/render-ad";
+import { resizePhotoForAd } from "@/lib/render-ad";
 import { generateAdImageWithAI } from "@/lib/ai-image";
 
 const BUCKET = "business-photos";
@@ -22,8 +22,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "לא נמצא משתמש" }, { status: 401 });
   }
 
-  const { businessId, photoId, headline, caption, format, textMode, eventId, imagePrompt } =
-    await request.json();
+  const {
+    businessId,
+    backgroundPhotoId,
+    subjectPhotoId,
+    headline,
+    subheadline,
+    caption,
+    format,
+    textMode,
+    includeText,
+    eventId,
+    imagePrompt,
+  } = await request.json();
 
   const business = await prisma.business.findFirst({
     where: { id: businessId, agencyId: dbUser.agencyId },
@@ -32,55 +43,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "עסק לא נמצא" }, { status: 404 });
   }
 
-  const photo = await prisma.photo.findUnique({ where: { id: photoId } });
-  if (!photo) {
-    return NextResponse.json({ error: "תמונה לא נמצאה" }, { status: 404 });
+  const backgroundPhoto = await prisma.photo.findUnique({ where: { id: backgroundPhotoId } });
+  if (!backgroundPhoto) {
+    return NextResponse.json({ error: "תמונת רקע לא נמצאה" }, { status: 404 });
   }
 
-  try {
-    const photoRes = await fetch(photo.originalUrl);
-    if (!photoRes.ok) throw new Error("שגיאה בהורדת התמונה המקורית");
-    const photoBuffer = Buffer.from(await photoRes.arrayBuffer());
+  const subjectPhoto = subjectPhotoId
+    ? await prisma.photo.findUnique({ where: { id: subjectPhotoId } })
+    : null;
 
-    let logoBuffer: Buffer | null = null;
+  try {
+    const bgRes = await fetch(backgroundPhoto.originalUrl);
+    if (!bgRes.ok) throw new Error("שגיאה בהורדת תמונת הרקע");
+    const bgBuffer = Buffer.from(await bgRes.arrayBuffer());
+    const resizedBg = await resizePhotoForAd({ photoBuffer: bgBuffer, format });
+
+    const imageBuffers: Buffer[] = [resizedBg];
+
+    if (subjectPhoto) {
+      const subjRes = await fetch(subjectPhoto.originalUrl);
+      if (subjRes.ok) imageBuffers.push(Buffer.from(await subjRes.arrayBuffer()));
+    }
+
     if (business.logoUrl) {
       try {
         const logoRes = await fetch(business.logoUrl);
-        if (logoRes.ok) {
-          logoBuffer = Buffer.from(await logoRes.arrayBuffer());
-        }
+        if (logoRes.ok) imageBuffers.push(Buffer.from(await logoRes.arrayBuffer()));
       } catch {
-        // לוגו לא זמין — ממשיכים בלי לוגו
+        // לוגו לא זמין — ממשיכים בלעדיו
       }
     }
 
-    // שלב 1: sharp מדביק לוגו (אם יש) ומתאים גודל — בדיוק כמו קודם.
-    const composedBuffer = await renderAdImage({ photoBuffer, logoBuffer, format });
-
-    // שלב 2: ניסיון להעשיר עם AI (גרדיאנט + טקסט מוטבע). אם נכשל מכל
-    // סיבה (רשת, מכסה, שגיאת API) — נופלים חזרה לתמונה מ-sharp בלבד,
-    // בלי טקסט מוטבע. ה-Ad עדיין נוצר בהצלחה; ה-caption הנפרד עדיין
-    // מוצג תמיד ב-UI, אז שום מידע לא אובד למשתמש.
-    let finalBuffer = composedBuffer;
-    try {
-      const subheadline = caption.split("\n")[0].split(".")[0] + ".";
-      const promptToUse =
-        imagePrompt ||
-        buildFallbackImagePrompt({
-          business,
-          headline,
-          subheadline,
-          hasLogo: !!logoBuffer,
-        });
-
-      finalBuffer = await generateAdImageWithAI({
-        imageBuffer: composedBuffer,
-        prompt: promptToUse,
-        format,
-      });
-    } catch (err) {
-      console.error("יצירת תמונה עם AI נכשלה, נופלים חזרה לתמונה בסיסית:", err);
-    }
+    // קריאה אחת ל-GPT-Image-2 — מחזירה את הפרסומת המוגמרת: ויזואל +
+    // לוגו + טקסט (אם יש), הכל מוטבע יחד על ידי אותו מודל.
+    const finalBuffer = await generateAdImageWithAI({ imageBuffers, prompt: imagePrompt, format });
 
     const admin = createAdminClient();
     const path = `${dbUser.agencyId}/${businessId}/ads/${Date.now()}.png`;
@@ -94,17 +90,20 @@ export async function POST(request: Request) {
     const ad = await prisma.ad.create({
       data: {
         businessId,
-        photoId,
+        photoId: backgroundPhotoId,
         format,
-        headline,
-        caption,
+        headline: includeText ? headline || "" : "",
+        caption: includeText ? caption || "" : "",
         textMode: textMode ?? "auto",
         outputImageUrl: publicUrlData.publicUrl,
         eventId: eventId ?? null,
       },
     });
 
-    await prisma.photo.update({ where: { id: photoId }, data: { status: "used" } });
+    await prisma.photo.update({ where: { id: backgroundPhotoId }, data: { status: "used" } });
+    if (subjectPhotoId) {
+      await prisma.photo.update({ where: { id: subjectPhotoId }, data: { status: "used" } });
+    }
 
     return NextResponse.json({ ok: true, ad });
   } catch (err) {

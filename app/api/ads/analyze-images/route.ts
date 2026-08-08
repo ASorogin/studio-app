@@ -1,9 +1,8 @@
-// app/api/ads/generate-image-prompt/route.ts
+// app/api/ads/analyze-images/route.ts
 import { NextResponse } from "next/server";
-import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
-import { generateFinalImagePrompt } from "@/lib/ai-art-direction";
+import { analyzeImages } from "@/lib/ai-vision";
 import { resizePhotoForAd } from "@/lib/render-ad";
 
 export async function POST(request: Request) {
@@ -20,18 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "לא נמצא משתמש" }, { status: 401 });
   }
 
-  const {
-    businessId,
-    backgroundPhotoId,
-    subjectPhotoId,
-    format,
-    headline,
-    subheadline,
-    includeText,
-    designStyle,
-    creativeAngle,
-    creativeBrief,
-  } = await request.json();
+  const { businessId, backgroundPhotoId, subjectPhotoId, format } = await request.json();
 
   const business = await prisma.business.findFirst({
     where: { id: businessId, agencyId: dbUser.agencyId },
@@ -57,29 +45,16 @@ export async function POST(request: Request) {
       if (subjectPhoto) {
         const subjRes = await fetch(subjectPhoto.originalUrl);
         if (subjRes.ok) {
-          const rawSubject = Buffer.from(await subjRes.arrayBuffer());
-          subjectBuffer = await sharp(rawSubject).png().toBuffer();
+          subjectBuffer = Buffer.from(await subjRes.arrayBuffer());
         }
       }
     }
 
-    const imagePrompt = await generateFinalImagePrompt({
-      business,
-      backgroundBuffer: resizedBg,
-      subjectBuffer,
-      format,
-      headline: headline || "",
-      subheadline: subheadline || "",
-      includeText,
-      designStyle,
-      creativeAngle,
-      creativeBrief,
-      hasLogo: !!business.logoUrl,
-    });
+    const analysis = await analyzeImages({ backgroundBuffer: resizedBg, subjectBuffer });
 
-    return NextResponse.json({ imagePrompt });
+    return NextResponse.json({ analysis });
   } catch (err) {
-    console.error("שגיאה בהכנת הנחיית עיצוב:", err);
-    return NextResponse.json({ error: "שגיאה בהכנת הנחיית עיצוב" }, { status: 500 });
+    console.error("שגיאה בניתוח תמונות:", err);
+    return NextResponse.json({ error: "שגיאה בניתוח התמונות" }, { status: 500 });
   }
 }
