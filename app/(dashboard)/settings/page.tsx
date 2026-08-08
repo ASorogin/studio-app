@@ -22,6 +22,11 @@ export default async function SettingsPage() {
     orderBy: { createdAt: "asc" },
   });
 
+  const pendingInvites = await prisma.agencyInvite.findMany({
+    where: { agencyId: dbUser.agencyId },
+    orderBy: { createdAt: "asc" },
+  });
+
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <div>
@@ -29,7 +34,12 @@ export default async function SettingsPage() {
         <p className="font-util text-sm text-ink/60">פרטי הסוכנות וניהול צוות</p>
       </div>
 
-      <SettingsForm agency={agency} users={users} currentUserId={dbUser.id} />
+      <SettingsForm
+        agency={agency}
+        users={users}
+        currentUserId={dbUser.id}
+        pendingInvites={pendingInvites}
+      />
     </div>
   );
 }

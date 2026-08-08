@@ -27,6 +27,7 @@ model Agency {
   users         User[]
   businesses    Business[]
   subscriptions Subscription[]
+  invites       AgencyInvite[]
 }
 
 enum UserRole {
@@ -44,6 +45,16 @@ model User {
   // passwordHash not stored here — managed by Supabase Auth.
   // id should match the Supabase Auth user id (uuid) once Auth is wired.
   createdAt DateTime @default(now())
+}
+
+model AgencyInvite {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  email     String
+  createdAt DateTime @default(now())
+
+  @@unique([agencyId, email])
 }
 
 model Business {
