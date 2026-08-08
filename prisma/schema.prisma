@@ -47,17 +47,18 @@ model User {
 }
 
 model Business {
-  id             String   @id @default(cuid())
-  agencyId       String
-  agency         Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  name           String
-  industry       String
-  logoUrl        String?
-  colorPrimary   String
-  colorSecondary String
-  fontFamily     String
-  keywords       String[]
-  createdAt      DateTime @default(now())
+  id                 String   @id @default(cuid())
+  agencyId           String
+  agency             Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name               String
+  industry           String
+  logoUrl            String?
+  colorPrimary       String
+  colorSecondary     String
+  fontFamily         String
+  defaultDesignStyle String?
+  keywords           String[]
+  createdAt          DateTime @default(now())
 
   photoShoots     PhotoShoot[]
   ads             Ad[]

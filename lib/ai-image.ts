@@ -11,20 +11,23 @@ const SIZE_BY_FORMAT: Record<string, "1024x1024" | "1024x1536"> = {
 };
 
 export async function generateAdImageWithAI({
-  imageBuffer,
+  imageBuffers,
   prompt,
   format,
 }: {
-  imageBuffer: Buffer;
+  imageBuffers: Buffer[];
   prompt: string;
   format: string;
 }): Promise<Buffer> {
   const size = SIZE_BY_FORMAT[format] ?? "1024x1024";
-  const imageFile = await toFile(imageBuffer, "input.png", { type: "image/png" });
+
+  const imageFiles = await Promise.all(
+    imageBuffers.map((buf, i) => toFile(buf, `input-${i}.png`, { type: "image/png" }))
+  );
 
   const response = await openai.images.edit({
     model: "gpt-image-2",
-    image: imageFile,
+    image: imageFiles,
     prompt,
     size,
   });
