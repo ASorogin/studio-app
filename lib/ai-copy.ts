@@ -82,7 +82,10 @@ ${angleLine}
     throw new Error("לא התקבל טקסט מהמודל");
   }
 
-  const cleaned = textBlock.text.trim().replace(/^```json\s*|\s*```$/g, "");
+  const cleaned = textBlock.text
+    .trim()
+    .replace(/^```json\s*|\s*```$/g, "")
+    .replace(/[\r\n\t]+/g, " ");
   const parsed = JSON.parse(cleaned);
 
   if (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0) {

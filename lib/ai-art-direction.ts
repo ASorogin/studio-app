@@ -118,7 +118,10 @@ export async function generateFinalImagePrompt({
     throw new Error("לא התקבל טקסט מהמודל ב-Art Direction");
   }
 
-  const cleaned = textBlock.text.trim().replace(/^```json\s*|\s*```$/g, "");
+  const cleaned = textBlock.text
+    .trim()
+    .replace(/^```json\s*|\s*```$/g, "")
+    .replace(/[\r\n\t]+/g, " ");
   const parsed = JSON.parse(cleaned);
 
   if (!parsed.imagePrompt) {

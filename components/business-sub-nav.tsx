@@ -8,7 +8,6 @@ const tabs = [
   { segment: "", label: "פרופיל" },
   { segment: "photos", label: "תמונות" },
   { segment: "generate", label: "יצירת פרסומת" },
-  { segment: "events", label: "אירועים" },
   { segment: "calendar", label: "תכנון תוכן" },
 ];
 
